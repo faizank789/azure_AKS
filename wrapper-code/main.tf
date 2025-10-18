@@ -37,7 +37,7 @@ module "aks" {
   vnet_subnet_id                       = data.terraform_remote_state.network.outputs.subnet_id[0][4]
   private_cluster_enabled              = var.private_cluster_enabled
   key_data = file("/bp/workspace/devops-iac/env/prod/key/azure-prod.pub")
-  # key_data = file("/home/opstree/Documents/ApnaMart/azure/keys/prod/azure-prod.pub")
+  # key_data = file("/home/vicky/Documents/Mart/azure/keys/prod/azure-prod.pub")
   enable_ingress_application_gateway   =  null
   ingress_application_gateway_name     = var.ingress_application_gateway_name
   ingress_application_gateway_subnet_cidr  = var.ingress_application_gateway_subnet_cidr
