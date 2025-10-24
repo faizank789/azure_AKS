@@ -1,0 +1,83 @@
+trigger:
+- master
+ 
+pool:
+  vmImage: 'ubuntu-latest'
+ 
+variables:
+  - group: tf-aks-vars
+ 
+jobs:
+# ============================================================
+# Job 1: Terraform Init/Plan runs on agent
+# ============================================================
+- job: terraform_plan
+  displayName: "Terraform Init & Plan"
+  steps:
+  - task: TerraformInstaller@1
+    displayName: 'Install Terraform'
+    inputs:
+      terraformVersion: '1.5.7'
+ 
+  - script: |
+      terraform init \
+        -backend-config="resource_group_name=$(RESOURCE_GROUP_NAME)" \
+        -backend-config="storage_account_name=$(STORAGE_ACCOUNT_NAME)" \
+        -backend-config="container_name=$(CONTAINER_NAME)" \
+        -backend-config="key=$(STATE_FILE_NAME)"
+    workingDirectory: '.'
+    displayName: 'Terraform Init'
+ 
+  - script: terraform validate
+    workingDirectory: '.'
+    displayName: 'Terraform Validate'
+ 
+  - script: terraform plan -var-file="terraform.tfvars" -out=tfplan
+    workingDirectory: 'wrapper-code'
+    displayName: 'Terraform Plan'
+ 
+  - task: PublishBuildArtifacts@1
+    inputs:
+      PathtoPublish: '/tfplan'
+      ArtifactName: 'tfplan'
+    displayName: 'Publish Plan'
+ 
+# ============================================================
+# Job 2: Manual Approval (Agentless)
+# ============================================================
+- job: manual_approval
+  displayName: "Manual Approval Before Apply"
+  dependsOn: terraform_plan
+  pool: server  # <--- important
+  steps:
+  - task: ManualValidation@1
+    displayName: "Approve before Terraform Apply"
+    inputs:
+      instructions: "Please approve Terraform apply to Azure."
+      onTimeout: 'reject'
+      timeout: '43200'  # Optional: 12 hours timeout
+ 
+# ============================================================
+# Job 3: Terraform Apply runs after approval
+# ============================================================
+- job: terraform_apply
+  displayName: "Terraform Apply"
+  dependsOn: manual_approval
+  pool:
+    vmImage: 'ubuntu-latest'
+  steps:
+  - task: TerraformInstaller@1
+    displayName: 'Install Terraform'
+    inputs:
+      terraformVersion: '1.5.7'
+ 
+  - task: DownloadBuildArtifacts@1
+    inputs:
+      buildType: current
+      downloadType: single
+      artifactName: tfplan
+      downloadPath: /tfplan
+ 
+  - script: terraform apply -auto-approve tfplan
+    workingDirectory: '.'
+    displayName: 'Terraform Apply'
